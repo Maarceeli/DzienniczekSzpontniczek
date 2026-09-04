@@ -9,6 +9,9 @@ class ApiSession {
     var selectedAccountIndex: Int = 0
     var prometheusMessagesApi: io.github.szpontium.api.prometheus.PrometheusMessagesApi? = null
     var prometheusMailboxKey: String? = null
+    var librusApi: io.github.szpontium.api.librus.SzpontLibrusApi? = null
+    var librusAccounts: List<io.github.szpontium.api.librus.models.LibrusSynergiaAccount> = emptyList()
+    var librusPortalToken: String? = null
 
     val currentAccount: Account?
         get() = accounts.getOrNull(selectedAccountIndex)
@@ -23,5 +26,10 @@ class ApiSession {
         api = null
         accounts = emptyList()
         selectedAccountIndex = 0
+        prometheusMessagesApi = null
+        prometheusMailboxKey = null
+        librusApi = null
+        librusAccounts = emptyList()
+        librusPortalToken = null
     }
 }

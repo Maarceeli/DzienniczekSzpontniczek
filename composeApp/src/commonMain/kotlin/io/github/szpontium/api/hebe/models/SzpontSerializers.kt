@@ -79,3 +79,39 @@ object VulcanNullableIntSerializer : KSerializer<Int?> {
         return numeric?.toInt()
     }
 }
+
+/**
+ * Serializer for VULCAN API time-only strings in ISO format ("HH:MM" or "HH:MM:SS").
+ */
+object VulcanLocalTimeSerializer : KSerializer<kotlinx.datetime.LocalTime> {
+    override val descriptor = PrimitiveSerialDescriptor("LocalTime", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: kotlinx.datetime.LocalTime) {
+        encoder.encodeString(value.toString())
+    }
+
+    override fun deserialize(decoder: Decoder): kotlinx.datetime.LocalTime {
+        return kotlinx.datetime.LocalTime.parse(decoder.decodeString())
+    }
+}
+
+/**
+ * Serializer for optional/nullable VULCAN API time strings.
+ */
+object VulcanNullableLocalTimeSerializer : KSerializer<kotlinx.datetime.LocalTime?> {
+    override val descriptor = PrimitiveSerialDescriptor("NullableLocalTime", PrimitiveKind.STRING)
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    override fun serialize(encoder: Encoder, value: kotlinx.datetime.LocalTime?) {
+        if (value == null) {
+            encoder.encodeNull()
+        } else {
+            encoder.encodeString(value.toString())
+        }
+    }
+
+    override fun deserialize(decoder: Decoder): kotlinx.datetime.LocalTime? {
+        val str = decoder.decodeString()
+        return if (str.isBlank()) null else kotlinx.datetime.LocalTime.parse(str)
+    }
+}

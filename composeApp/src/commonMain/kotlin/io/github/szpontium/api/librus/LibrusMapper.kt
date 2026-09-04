@@ -150,7 +150,7 @@ object LibrusMapper {
                     }
 
                     val s = Schedule(
-                        id = (lessonDate.toEpochDays().toLong() % 1000000 * 100 + lLesson.lessonNo).toInt(),
+                        id = (lessonDate.toEpochDays().toLong() % 1000000L * 100L + lLesson.lessonNo.toLong()).toInt(),
                         mergeChangeId = null,
                         event = if (lLesson.isCanceled) "Odwołana" else null,
                         date = lessonDate,
@@ -317,6 +317,59 @@ object LibrusMapper {
                 isUnread = lM.isRead == false,
                 hasAttachments = lM.hasAttachment == true,
                 content = lM.content
+            )
+        }
+    }
+
+    fun mapAnnouncements(
+        lNotices: List<LibrusNotice>,
+        lUsers: List<LibrusUser>
+    ): List<Announcement> {
+        val userMap = lUsers.associateBy { it.id }
+
+        return lNotices.map { lN ->
+            val date = try {
+                LocalDate.parse(lN.date)
+            } catch (e: Exception) {
+                LocalDate(2024, 1, 1)
+            }
+            val dateTime = LocalDateTime(date.year, date.month, date.day, 0, 0)
+            val lUser = userMap[lN.teacher?.id]
+            val teacherName = if (lUser != null) "${lUser.firstName ?: ""} ${lUser.lastName ?: ""}".trim() else "Nauczyciel"
+
+            Announcement(
+                id = lN.id.toInt(),
+                unitId = 0,
+                title = "Ogłoszenie",
+                content = lN.text,
+                category = null,
+                dateFrom = date,
+                dateTo = date,
+                sender = Employee(0, "", teacherName, teacherName),
+                attachments = emptyList(),
+                createdAt = dateTime,
+                modifiedAt = dateTime
+            )
+        }
+    }
+
+    fun mapAverages(
+        averages: Map<String, String>,
+        subjects: List<LibrusSubject>
+    ): List<GradeAverage> {
+        val subjectMap: Map<Long, LibrusSubject> = subjects.associateBy { it.id }
+        return averages.mapNotNull { (subjectIdStr, avgValue) ->
+            val sId = subjectIdStr.toLongOrNull() ?: return@mapNotNull null
+            val subjectName = subjectMap[sId]?.name ?: "Przedmiot $sId"
+            GradeAverage(
+                id = sId.toInt(),
+                pupilId = 0,
+                periodId = 1,
+                subject = Subject(sId.toInt(), sId.toString(), subjectName, "", 0),
+                average = avgValue,
+                points = null,
+                annotation = null,
+                scope = "Librus"
             )
         }
     }

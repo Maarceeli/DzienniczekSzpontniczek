@@ -88,7 +88,14 @@ class LibrusLoginHelper {
 
         // 3. Follow redirects to find the code
         var currentLocation = loginResponse.headers[HttpHeaders.Location]
-            ?: throw IllegalStateException("Login failed: no redirect location. Check credentials.")
+            ?: run {
+                val errorDoc = Ksoup.parse(loginResponse.bodyAsText())
+                val errorMsg = errorDoc.select(".alert-danger, .error-message, .form-error").text().trim()
+                if (errorMsg.isNotEmpty()) {
+                    throw IllegalStateException("Błąd logowania Librus: $errorMsg")
+                }
+                throw IllegalStateException("Błąd logowania do Librusa. Sprawdź e-mail i hasło.")
+            }
 
         var authCode: String? = null
         
@@ -101,13 +108,15 @@ class LibrusLoginHelper {
                 return@repeat
             }
 
-            val resp = noRedirectClient.get(currentLocation) {
+            val targetUrl = if (currentLocation.startsWith("/")) "https://portal.librus.pl$currentLocation" else currentLocation
+            val resp = noRedirectClient.get(targetUrl) {
                 header("Referer", LibrusConstants.AUTHORIZE_URL)
             }
-            currentLocation = resp.headers[HttpHeaders.Location] ?: return@repeat
+            val nextLoc = resp.headers[HttpHeaders.Location] ?: return@repeat
+            currentLocation = if (nextLoc.startsWith("/")) "https://portal.librus.pl$nextLoc" else nextLoc
         }
 
-        val finalCode = authCode ?: throw IllegalStateException("Could not obtain auth code from Librus")
+        val finalCode = authCode ?: throw IllegalStateException("Nie udało się uzyskać kodu autoryzacji z Librusa")
 
         // 4. Exchange code for token
         val tokenResponse: LibrusTokenResponse = httpClient.submitForm(

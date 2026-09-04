@@ -3,14 +3,12 @@ package io.github.szpontium.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.szpontium.api.prometheus.PrometheusMessagesApi
+import io.github.szpontium.api.prometheus.models.VulcanMailboxName
 import io.github.szpontium.session.ApiSession
 import io.github.szpontium.ui.model.UiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 enum class MessageTab {
     RECEIVED, SENT, DELETED
@@ -49,18 +47,39 @@ class MessagesViewModel(
         viewModelScope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {
+                if (account.unit.restUrl == "librus" || session.librusApi != null) {
+                    val librusApi = session.librusApi
+                        ?: (api as? io.github.szpontium.api.librus.SzpontLibrusAdapterApi)?.librusApi
+                    if (librusApi != null) {
+                        val lMessages = librusApi.getMessages()
+                        val uiMessages = io.github.szpontium.api.librus.LibrusMapper.mapMessages(lMessages)
+                        _state.value = _state.value.copy(isLoading = false, messages = uiMessages)
+                        return@launch
+                    }
+                }
+
                 // Determine if we can use PrometheusMessagesApi
                 val prometheusApi = session.prometheusMessagesApi
                 if (prometheusApi != null && account.unit.restUrl.contains("hebe", ignoreCase = true).not()) {
-                    // Initialize if needed
-                    try {
-                        prometheusApi.initialize()
-                    } catch (e: Exception) {
-                        // ignore or handle initialization error
+                    var mailboxKey = session.prometheusMailboxKey
+                    if (mailboxKey.isNullOrBlank()) {
+                        val mailboxes = prometheusApi.getMailboxes()
+                        val firstName = account.pupil.firstName.trim()
+                        val surname = account.pupil.surname.trim()
+                        val matched = mailboxes.firstOrNull { mb ->
+                            val parsed = VulcanMailboxName.parse(mb.nazwa)
+                            if (parsed?.studentName != null) {
+                                firstName.isNotEmpty() && parsed.studentName.contains(firstName, ignoreCase = true)
+                                        && surname.isNotEmpty() && parsed.studentName.contains(surname, ignoreCase = true)
+                            } else {
+                                firstName.isNotEmpty() && mb.nazwa.contains(firstName, ignoreCase = true)
+                                        && surname.isNotEmpty() && mb.nazwa.contains(surname, ignoreCase = true)
+                            }
+                        } ?: mailboxes.firstOrNull()
+                        mailboxKey = matched?.globalKey
+                        session.prometheusMailboxKey = mailboxKey
                     }
-                    val mailboxKey = session.prometheusMailboxKey ?: "" // Should be populated during login, but as fallback we pass empty or we need to extract from somewhere. 
-                    // Wait, Prometheus API needs a mailbox key. Let's look at SzpontApi - it also needs `box`.
-                    val box = account.messageBox?.globalKey ?: ""
+                    val box = mailboxKey ?: ""
                     
                     val pMessages = when (currentTab) {
                         MessageTab.RECEIVED -> prometheusApi.getReceivedMessages(mailboxKey = box)

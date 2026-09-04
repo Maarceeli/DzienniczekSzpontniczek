@@ -19,7 +19,7 @@ open class SzpontApi(
     protected val szpontHttpClient: SzpontHttpClient
 ) {
 
-    suspend fun getAccounts(pupilId: Int? = null): List<Account> {
+    open suspend fun getAccounts(pupilId: Int? = null): List<Account> {
         val envelope = szpontHttpClient.request(
             method = "GET",
             restUrl = credential.restUrl ?: error("restUrl not set – register first"),
@@ -50,7 +50,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getAnnouncements(
+    open suspend fun getAnnouncements(
         restUrl: String,
         unitId: Int,
         pupilId: Int,
@@ -122,7 +122,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getExams(
+    open suspend fun getExams(
         restUrl: String,
         pupilId: Int,
         dateFrom: LocalDate,
@@ -148,7 +148,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getGrades(
+    open suspend fun getGrades(
         restUrl: String,
         unitId: Int,
         pupilId: Int,
@@ -174,7 +174,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getGradesAverages(
+    open suspend fun getGradesAverages(
         restUrl: String,
         unitId: Int,
         pupilId: Int,
@@ -223,7 +223,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getHomework(
+    open suspend fun getHomework(
         restUrl: String,
         pupilId: Int,
         dateFrom: LocalDate,
@@ -286,12 +286,60 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getLuckyNumber(
+    suspend fun getKindergartenPresences(
+        restUrl: String,
+        pupilId: Int,
+        dateFrom: LocalDate,
+        dateTo: LocalDate,
+        lastId: Int = INT_MIN,
+        pageSize: Int = DEFAULT_PAGE_SIZE
+    ): List<KindergartenPresence> {
+        val envelope = szpontHttpClient.request(
+            method = "GET",
+            restUrl = restUrl,
+            endpoint = "mobile/kindergarten/presence/byPupil",
+            query = mapOf(
+                "pupilId" to pupilId,
+                "dateFrom" to dateFrom,
+                "dateTo" to dateTo,
+                "lastId" to lastId,
+                "pageSize" to pageSize
+            ),
+            pupilId = pupilId
+        )
+        return envelope?.let { szpontJson.decodeFromJsonElement(it) } ?: emptyList()
+    }
+
+    suspend fun getKindergartenAbsences(
+        restUrl: String,
+        pupilId: Int,
+        dateFrom: LocalDate,
+        dateTo: LocalDate,
+        lastId: Int = INT_MIN,
+        pageSize: Int = DEFAULT_PAGE_SIZE
+    ): List<KindergartenAbsence> {
+        val envelope = szpontHttpClient.request(
+            method = "GET",
+            restUrl = restUrl,
+            endpoint = "mobile/kindergarten/absence/byPupil",
+            query = mapOf(
+                "pupilId" to pupilId,
+                "dateFrom" to dateFrom,
+                "dateTo" to dateTo,
+                "lastId" to lastId,
+                "pageSize" to pageSize
+            ),
+            pupilId = pupilId
+        )
+        return envelope?.let { szpontJson.decodeFromJsonElement(it) } ?: emptyList()
+    }
+
+    open suspend fun getLuckyNumber(
         restUrl: String,
         pupilId: Int,
         constituentUnitId: Int,
         day: LocalDate = LocalDate.fromEpochDays(0)
-    ): LuckyNumber {
+    ): LuckyNumber? {
         val envelope = szpontHttpClient.request(
             method = "GET",
             restUrl = restUrl,
@@ -303,7 +351,7 @@ open class SzpontApi(
             ),
             pupilId = pupilId
         )
-        return szpontJson.decodeFromJsonElement(envelope!!)
+        return envelope?.let { szpontJson.decodeFromJsonElement(it) }
     }
 
     suspend fun getMealMenu(
@@ -358,7 +406,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getNotes(
+    open suspend fun getNotes(
         restUrl: String,
         pupilId: Int,
         lastId: Int = INT_MIN,
@@ -482,7 +530,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getReceivedMessages(
+    open suspend fun getReceivedMessages(
         restUrl: String,
         box: String,
         pupilId: Int,
@@ -506,7 +554,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getSentMessages(
+    open suspend fun getSentMessages(
         restUrl: String,
         box: String,
         pupilId: Int,
@@ -530,7 +578,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getDeletedMessages(
+    open suspend fun getDeletedMessages(
         restUrl: String,
         box: String,
         pupilId: Int,
@@ -554,7 +602,7 @@ open class SzpontApi(
         return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
-    suspend fun getSchedule(
+    open suspend fun getSchedule(
         restUrl: String,
         pupilId: Int,
         dateFrom: LocalDate,
@@ -751,6 +799,56 @@ open class SzpontApi(
                 put("Status", status)
             }
         )
+    }
+
+    suspend fun markMessageAsRead(
+        restUrl: String,
+        boxKey: String,
+        messageKey: String,
+        status: Int = 1,
+        pupilId: Int? = null
+    ) {
+        changeMessageStatus(
+            restUrl = restUrl,
+            boxKey = boxKey,
+            messageKey = messageKey,
+            status = status,
+            pupilId = pupilId
+        )
+    }
+
+    suspend fun sendMessage(
+        restUrl: String,
+        pupilId: Int,
+        message: HebeSendMessage
+    ) {
+        szpontHttpClient.request(
+            method = "POST",
+            endpoint = "mobile/messages",
+            restUrl = restUrl,
+            pupilId = pupilId,
+            payload = szpontJson.encodeToJsonElement(HebeSendMessage.serializer(), message)
+        )
+    }
+
+    suspend fun justifyLesson(
+        restUrl: String,
+        pupilId: Int,
+        lessonClassId: Int,
+        reason: String
+    ): JustificationLessonResponse {
+        val envelope = szpontHttpClient.request(
+            method = "POST",
+            endpoint = "mobile/presence/justification/lesson",
+            restUrl = restUrl,
+            pupilId = pupilId,
+            payload = buildJsonObject {
+                put("PupilId", pupilId)
+                put("LessonClassId", lessonClassId)
+                put("Reason", reason)
+            }
+        )
+        return szpontJson.decodeFromJsonElement(envelope!!)
     }
 
     suspend fun setPushLocale(locale: String, pupilId: Int? = null) {

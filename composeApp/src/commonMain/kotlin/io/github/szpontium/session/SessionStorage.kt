@@ -52,6 +52,37 @@ class SessionStorage(
         }
     }
 
+    suspend fun saveLibrus(
+        email: String,
+        password: String,
+        portalToken: String,
+        apiToken: String,
+        accounts: List<Account>,
+        synergiaAccounts: List<io.github.szpontium.api.librus.models.LibrusSynergiaAccount>
+    ) {
+        val stored = StoredCredential(
+            apiType = "librus",
+            type = "librus",
+            restUrl = "librus",
+            certificate = "",
+            privateKey = "",
+            fingerprint = "",
+            notificationToken = null,
+            deviceId = "librus",
+            deviceOs = "Android",
+            deviceModel = "LibrusClient",
+            librusEmail = email,
+            librusPassword = password,
+            librusPortalToken = portalToken,
+            librusApiToken = apiToken,
+            librusAccountsJson = json.encodeToString(synergiaAccounts)
+        )
+        dataStore.edit { prefs ->
+            prefs[credentialKey] = json.encodeToString(stored)
+            prefs[accountsKey] = json.encodeToString(ListSerializer(Account.serializer()), accounts)
+        }
+    }
+
     suspend fun restore(session: ApiSession): Boolean {
         val prefs = dataStore.data.first()
         val credentialJson = prefs[credentialKey] ?: return false
@@ -59,6 +90,31 @@ class SessionStorage(
         return try {
             val stored = json.decodeFromString<StoredCredential>(credentialJson)
             val accounts = json.decodeFromString(ListSerializer(Account.serializer()), accountsJson)
+
+            if (stored.apiType == "librus") {
+                val portalToken = stored.librusPortalToken ?: return false
+                val apiToken = stored.librusApiToken ?: return false
+                val synergiaAccounts: List<io.github.szpontium.api.librus.models.LibrusSynergiaAccount> = 
+                    stored.librusAccountsJson?.let { json.decodeFromString(it) } ?: emptyList()
+                val firstAccount = synergiaAccounts.firstOrNull() ?: return false
+                
+                val librusApi = io.github.szpontium.api.librus.SzpontLibrusApi(
+                    httpClient = httpClient,
+                    portalAccessToken = portalToken,
+                    apiAccessToken = apiToken
+                )
+                val adapter = io.github.szpontium.api.librus.SzpontLibrusAdapterApi(
+                    librusApi = librusApi,
+                    currentSynergiaAccount = firstAccount,
+                    httpClient = httpClient
+                )
+                session.setup(adapter, accounts)
+                session.librusApi = librusApi
+                session.librusAccounts = synergiaAccounts
+                session.librusPortalToken = portalToken
+                return true
+            }
+
             val credential = RsaCredential(
                 type = stored.type,
                 restUrl = stored.restUrl,

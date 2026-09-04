@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -94,6 +96,11 @@ fun LoginScreen(
                     onClick = { selectedTab = 1 },
                     text = { Text("Dzienniczek") }
                 )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("Librus") }
+                )
             }
 
             Spacer(Modifier.height(24.dp))
@@ -106,6 +113,10 @@ fun LoginScreen(
                 1 -> DzienniczekLoginTab(
                     isLoading = isLoading,
                     onLogin = { token, pin, symbol -> viewModel.loginWithToken(token, pin, symbol) }
+                )
+                2 -> LibrusLoginTab(
+                    isLoading = isLoading,
+                    onLogin = { email, password -> viewModel.loginWithLibrus(email, password) }
                 )
             }
         }
@@ -226,6 +237,71 @@ private fun DzienniczekLoginTab(
                 )
             } else {
                 Text("Zarejestruj urządzenie")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibrusLoginTab(
+    isLoading: Boolean,
+    onLogin: (String, String) -> Unit
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+            ),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        ) {
+            Text(
+                text = "Zaloguj się danymi do Konta LIBRUS (portal.librus.pl). Jeśli posiadasz login Synergia (np. 1234567u), powiąż go najpierw na stronie portalu.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(12.dp)
+            )
+        }
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("E-mail (Konto LIBRUS)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("Hasło") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = { onLogin(email, password) },
+            enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Zaloguj przez Librus")
             }
         }
     }

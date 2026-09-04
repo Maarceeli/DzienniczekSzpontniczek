@@ -5,10 +5,6 @@ import io.ktor.client.HttpClient
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-private const val HEBE_APP_NAME = "DzienniczekPlus 2.0"
-private const val HEBE_APP_VERSION = "26.04.00 (G)"
-private const val HEBE_APP_VERSION_CODE = "941"
-
 private val TOKEN_PREFIXES = mapOf(
     "3S1" to "https://lekcjaplus.vulcan.net.pl",
     "TA1" to "https://uonetplus-komunikacja.umt.tarnow.pl",
@@ -37,10 +33,11 @@ private val TOKEN_PREFIXES = mapOf(
  */
 class SzpontHebeApi(
     credential: ICredential,
-    httpClient: HttpClient
+    httpClient: HttpClient,
+    identity: HebeHttpIdentity = hebeIdentity
 ) : SzpontApi(
     credential,
-    SzpontHttpClient(credential, HEBE_APP_NAME, HEBE_APP_VERSION, HEBE_APP_VERSION_CODE, httpClient)
+    SzpontHttpClient(credential, identity, httpClient)
 ) {
 
     /**
@@ -55,14 +52,14 @@ class SzpontHebeApi(
         val token = securityToken.uppercase()
         val baseUrl = TOKEN_PREFIXES[token.take(3)]
             ?: throw WrongTokenException("Unknown token prefix: ${token.take(3)}")
-        val restUrl = "$baseUrl/$tenant/api"
+        val restUrl = "${baseUrl.trimEnd('/')}/${tenant.trim('/')}/api"
 
         szpontHttpClient.request(
             method = "POST",
             endpoint = "mobile/register/token",
             restUrl = restUrl,
             payload = buildJsonObject {
-                put("OS", credential.deviceOs)
+                put("OS", if (isIphone(credential.deviceModel)) "iOS" else credential.deviceOs)
                 put("Certificate", credential.certificate)
                 put("CertificateType", credential.type)
                 put("DeviceModel", credential.deviceModel)

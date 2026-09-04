@@ -5,4 +5,6 @@ import kotlinx.serialization.json.Json
 internal val szpontJson = Json {
     ignoreUnknownKeys = true
     coerceInputValues = true
+    isLenient = true
+    explicitNulls = false
 }

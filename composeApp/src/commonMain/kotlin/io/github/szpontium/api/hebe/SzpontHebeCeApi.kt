@@ -7,9 +7,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
-private const val HEBECE_APP_NAME = "DzienniczekPlus 3.0"
-private const val HEBECE_APP_VERSION = "26.04.01 (G)"
-private const val HEBECE_APP_VERSION_CODE = "946"
 private const val HEBECE_API_BASE_URL = "https://lekcjaplus.vulcan.net.pl"
 
 /**
@@ -23,10 +20,11 @@ private const val HEBECE_API_BASE_URL = "https://lekcjaplus.vulcan.net.pl"
  */
 class SzpontHebeCeApi(
     credential: ICredential,
-    httpClient: HttpClient
+    httpClient: HttpClient,
+    identity: HebeHttpIdentity = hebeCeIdentity
 ) : SzpontApi(
     credential,
-    SzpontHttpClient(credential, HEBECE_APP_NAME, HEBECE_APP_VERSION, HEBECE_APP_VERSION_CODE, httpClient)
+    SzpontHttpClient(credential, identity, httpClient)
 ) {
 
     /**
@@ -37,14 +35,14 @@ class SzpontHebeCeApi(
      * @return The REST URL assigned after successful registration
      */
     suspend fun registerByJwt(tokens: List<String>, tenant: String): String {
-        val restUrl = "$HEBECE_API_BASE_URL/$tenant/api"
+        val restUrl = "$HEBECE_API_BASE_URL/${tenant.trim('/')}/api"
 
         szpontHttpClient.request(
             method = "POST",
             endpoint = "mobile/register/jwt",
             restUrl = restUrl,
             payload = buildJsonObject {
-                put("OS", credential.deviceOs)
+                put("OS", if (isIphone(credential.deviceModel)) "iOS" else credential.deviceOs)
                 put("Certificate", credential.certificate)
                 put("CertificateType", credential.type)
                 put("DeviceModel", credential.deviceModel)

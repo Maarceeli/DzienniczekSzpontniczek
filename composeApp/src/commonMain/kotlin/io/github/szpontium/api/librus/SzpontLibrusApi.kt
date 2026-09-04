@@ -173,6 +173,19 @@ class SzpontLibrusApi(
         return json.decodeFromString<LibrusGradeCategoriesResponse>(responseText).categories
     }
 
+    suspend fun getAverages(): Map<String, String> {
+        val responseText = httpClient.get("${LibrusConstants.API_URL}/Grades/Averages") {
+            header("Authorization", "Bearer $apiAccessToken")
+        }.bodyAsText()
+        return try {
+            val obj = json.parseToJsonElement(responseText).jsonObject
+            val averages = obj["Averages"]?.jsonObject ?: return emptyMap()
+            averages.mapValues { it.value.jsonPrimitive.content }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
     suspend fun getHomework(): List<LibrusHomeWorkAssignment> {
         val responseText = httpClient.get("${LibrusConstants.API_URL}/HomeWorkAssignments") {
             header("Authorization", "Bearer $apiAccessToken")

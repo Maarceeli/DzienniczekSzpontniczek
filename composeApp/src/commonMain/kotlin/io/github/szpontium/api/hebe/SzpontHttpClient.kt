@@ -25,7 +25,7 @@ import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-private const val USER_AGENT = "Dart/3.10 (dart:io)"
+private const val DEFAULT_USER_AGENT = "Dart/3.11 (dart:io)"
 private const val API_VERSION = 1
 
 class SzpontHttpClient(
@@ -33,8 +33,22 @@ class SzpontHttpClient(
     private val appName: String,
     private val appVersion: String,
     private val appVersionCode: String,
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
+    private val userAgent: String = DEFAULT_USER_AGENT
 ) {
+
+    constructor(
+        credential: ICredential,
+        identity: HebeHttpIdentity,
+        httpClient: HttpClient
+    ) : this(
+        credential = credential,
+        appName = identity.appName,
+        appVersion = identity.appVersion(credential.deviceModel),
+        appVersionCode = identity.appVersionCode(credential.deviceModel),
+        httpClient = httpClient,
+        userAgent = identity.appUserAgent(credential.deviceModel)
+    )
 
     @OptIn(ExperimentalUuidApi::class)
     private fun buildBody(envelope: JsonElement): String {
@@ -75,7 +89,13 @@ class SzpontHttpClient(
         payload: JsonElement? = null,
         verifyResponse: Boolean = true
     ): JsonElement? {
-        val url = "$restUrl/$endpoint"
+        val cleanRestUrl = if (restUrl.endsWith("/api") || restUrl.endsWith("/api/")) {
+            restUrl.trimEnd('/')
+        } else {
+            restUrl.trimEnd('/') + "/api"
+        }
+        val cleanEndpoint = endpoint.trimStart('/')
+        val url = "$cleanRestUrl/$cleanEndpoint"
         val body = if (payload != null) buildBody(payload) else null
         val now = Clock.System.now()
 
@@ -87,13 +107,15 @@ class SzpontHttpClient(
             timestamp = now
         )
 
+        val os = if (isIphone(credential.deviceModel)) "iOS" else credential.deviceOs
+
         val response = try {
             httpClient.request(url) {
                 this.method = HttpMethod.parse(method)
-                header("vOS", credential.deviceOs)
+                header("vOS", os)
                 header("vVersionCode", appVersionCode)
                 header("vAPI", API_VERSION.toString())
-                header("User-Agent", USER_AGENT)
+                header("User-Agent", userAgent)
                 if (pupilId != null) header("vHint", pupilId.toString())
                 if (body != null) {
                     header("Content-Type", "application/json; charset=utf-8")

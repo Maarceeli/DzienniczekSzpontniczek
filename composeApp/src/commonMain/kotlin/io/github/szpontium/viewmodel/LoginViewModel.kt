@@ -48,8 +48,8 @@ class LoginViewModel(
                     password = password,
                     deviceModel = "Android"
                 )
-                val tenant = result.tenantTokens.keys.first()
-                val tokens = result.tenantTokens.values.toList()
+                val tenant = result.tokensByTenant.keys.firstOrNull() ?: result.tenantTokens.keys.first()
+                val tokens = result.tokensByTenant[tenant] ?: result.tokens
 
                 val credential = RsaCredential.createNew(
                     deviceOs = "Android",
@@ -110,6 +110,69 @@ class LoginViewModel(
                 _events.send(LoginEvent.Success)
             } catch (e: Exception) {
                 _events.send(LoginEvent.Error(e.message ?: "Błąd rejestracji"))
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun loginWithLibrus(email: String, password: String) {
+        if (email.isBlank() || password.isBlank()) {
+            viewModelScope.launch {
+                _events.send(LoginEvent.Error("E-mail i hasło nie mogą być puste"))
+            }
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                val loginHelper = io.github.szpontium.api.librus.LibrusLoginHelper()
+                val tokenResponse = loginHelper.login(email.trim(), password)
+                val portalToken = tokenResponse.accessToken
+
+                val librusApi = io.github.szpontium.api.librus.SzpontLibrusApi(
+                    httpClient = httpClient,
+                    portalAccessToken = portalToken
+                )
+
+                val synergiaAccounts = librusApi.getSynergiaAccounts()
+                if (synergiaAccounts.isEmpty()) {
+                    _events.send(LoginEvent.Error("Brak powiązanych kont Synergia na tym koncie Librus"))
+                    return@launch
+                }
+
+                val firstAccount = synergiaAccounts.first()
+                val apiToken = firstAccount.accessToken ?: librusApi.getFreshApiToken(firstAccount.login)
+                librusApi.apiAccessToken = apiToken
+
+                val me = librusApi.getMe()
+                val accounts = synergiaAccounts.map { sAcc ->
+                    io.github.szpontium.api.librus.LibrusMapper.toHebeAccount(sAcc, me)
+                }
+
+                val adapterApi = io.github.szpontium.api.librus.SzpontLibrusAdapterApi(
+                    librusApi = librusApi,
+                    currentSynergiaAccount = firstAccount,
+                    httpClient = httpClient
+                )
+                session.setup(adapterApi, accounts)
+                session.librusApi = librusApi
+                session.librusAccounts = synergiaAccounts
+                session.librusPortalToken = portalToken
+
+                sessionStorage.saveLibrus(
+                    email = email.trim(),
+                    password = password,
+                    portalToken = portalToken,
+                    apiToken = apiToken,
+                    accounts = accounts,
+                    synergiaAccounts = synergiaAccounts
+                )
+
+                _events.send(LoginEvent.Success)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _events.send(LoginEvent.Error(e.message ?: "Błąd logowania do Librusa"))
             } finally {
                 _isLoading.value = false
             }

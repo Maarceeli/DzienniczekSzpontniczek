@@ -16,5 +16,10 @@ data class StoredCredential(
     val deviceModel: String,
     val prometheusLogin: String? = null,
     val prometheusPassword: String? = null,
-    val prometheusTenant: String? = null
+    val prometheusTenant: String? = null,
+    val librusEmail: String? = null,
+    val librusPassword: String? = null,
+    val librusPortalToken: String? = null,
+    val librusApiToken: String? = null,
+    val librusAccountsJson: String? = null
 )

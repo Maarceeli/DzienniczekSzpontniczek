@@ -30,12 +30,37 @@ class MessageDetailsViewModel(
         loadedId = id
 
         viewModelScope.launch {
+            if (session.currentAccount?.unit?.restUrl == "librus" || session.librusApi != null) {
+                _state.value = _state.value.copy(isLoading = true, error = null)
+                try {
+                    val librusApi = session.librusApi
+                        ?: (session.api as? io.github.szpontium.api.librus.SzpontLibrusAdapterApi)?.librusApi
+                    val content = librusApi?.getMessageContent(id.toIntOrNull() ?: 0) ?: ""
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        content = content.ifBlank { hebeContent ?: "Brak treści wiadomości." }
+                    )
+                } catch (e: Exception) {
+                    _state.value = _state.value.copy(
+                        isLoading = false,
+                        content = hebeContent ?: "Brak treści wiadomości."
+                    )
+                }
+                return@launch
+            }
+
             if (isHebe) {
                 // Hebe already provides the content from the list
                 _state.value = _state.value.copy(
                     isLoading = false,
                     content = hebeContent ?: "Brak treści wiadomości."
                 )
+                val account = session.currentAccount
+                val api = session.api
+                if (account != null && api != null) {
+                    val box = account.messageBox?.globalKey ?: ""
+                    runCatching { api.markMessageAsRead(account.unit.restUrl, box, id, pupilId = account.pupil.id) }
+                }
             } else {
                 _state.value = _state.value.copy(isLoading = true, error = null)
                 try {
@@ -43,6 +68,7 @@ class MessageDetailsViewModel(
                         ?: throw IllegalStateException("Prometheus API not initialized")
                     
                     val details = prometheusApi.getMessageDetails(apiGlobalKey = id)
+                    runCatching { prometheusApi.markMessageAsRead(apiGlobalKey = id) }
                     
                     _state.value = _state.value.copy(
                         isLoading = false,
